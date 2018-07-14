@@ -1,14 +1,4 @@
-/*
-#include <iostream>
 
-using namespace std;
-
-int main()
-{
-    cout << "Hello World!" << endl;
-    return 0;
-}
-*/
 //串口相关的头文件
 #include <iostream>
 #include<stdio.h>      /*标准输入输出定义*/
@@ -280,32 +270,6 @@ int UART0_Recv(int fd, unsigned char *rcv_buf,int data_len)
         return FALSE;
     }
 }
-/********************************************************************
-* 名称：                  UART0_Send
-* 功能：                发送数据
-* 入口参数：        fd                  :文件描述符
-*                              send_buf    :存放串口发送数据
-*                              data_len    :一帧数据的个数
-* 出口参数：        正确返回为1，错误返回为0
-*******************************************************************/
-int UART0_Send(int fd, char *send_buf,int data_len)
-{
-    int len = 0;
-
-    len = write(fd,send_buf,data_len);
-    if (len == data_len )
-    {
-        printf("send data is %s\n",send_buf);
-        return len;
-    }
-    else
-    {
-
-        tcflush(fd,TCOFLUSH);
-        return FALSE;
-    }
-
-}
 
 double a[3],w[3],Angle[3],T;
 void DecodeIMUData(unsigned char chrTemp[])
@@ -317,21 +281,21 @@ void DecodeIMUData(unsigned char chrTemp[])
         a[1] = (short(chrTemp[5]<<8|chrTemp[4]))/32768.0*16;
         a[2] = (short(chrTemp[7]<<8|chrTemp[6]))/32768.0*16;
         T = (short(chrTemp[9]<<8|chrTemp[8]))/340.0 + 36.25;
-        printf("a = %4.3f\t%4.3f\t%4.3f\t\r\n",a[0],a[1],a[2]);
+        printf("Acceleration = %4.3f\t%4.3f\t%4.3f\t\r\n",a[0],a[1],a[2]);
         break;
     case 0x52:
         w[0] = (short(chrTemp[3]<<8|chrTemp[2]))/32768.0*2000;
         w[1] = (short(chrTemp[5]<<8|chrTemp[4]))/32768.0*2000;
         w[2] = (short(chrTemp[7]<<8|chrTemp[6]))/32768.0*2000;
         T = (short(chrTemp[9]<<8|chrTemp[8]))/340.0 + 36.25;
-        printf("a = %4.3f\t%4.3f\t%4.3f\t\r\n",w[0],w[1],w[2]);
+        printf("w = %4.3f\t%4.3f\t%4.3f\t\r\n",w[0],w[1],w[2]);
         break;
     case 0x53:
         Angle[0] = (short(chrTemp[3]<<8|chrTemp[2]))/32768.0*180;
         Angle[1] = (short(chrTemp[5]<<8|chrTemp[4]))/32768.0*180;
         Angle[2] = (short(chrTemp[7]<<8|chrTemp[6]))/32768.0*180;
         T = (short(chrTemp[9]<<8|chrTemp[8]))/340.0 + 36.25;
-        printf("a = %4.3f\t%4.3f\t%4.3f\tT=%4.2f\r\n",Angle[0],Angle[1],Angle[2],T);
+        printf("Angle = %4.3f\t%4.3f\t%4.3f\tT=%4.2f\r\n",Angle[0],Angle[1],Angle[2],T);
         break;
     }
 }
@@ -341,79 +305,47 @@ int main(int argc, char **argv)
     int fd;                            //文件描述符
     int err;                           //返回调用函数的状态
     int len;
-    int i;
     unsigned char rcv_buf[1000];
-    //char send_buf[20]="tiger john";
-    char send_buf[20]="tiger john";
-//    if(argc != 3)
-//    {
-//        printf("Usage: %s /dev/ttySn 0(send data)/1 (receive data) \n",argv[0]);
-//        return FALSE;
-//    }
-    argv[1] = "/dev/ttyUSB0";
-    argv[2] = "1";
-    fd = UART0_Open(fd,argv[1]); //打开串口，返回文件描述符
+    fd = UART0_Open(fd,"/dev/ttyUSB0"); //打开串口，返回文件描述符
     do
     {
         err = UART0_Init(fd,115200,0,8,1,'N');
         std::cout<<"err = "<<err<<std::endl;
         printf("Set Port Exactly!\n");
     }while(FALSE == err || FALSE == fd);
-    std::cout<<"serial port setting succeeded!"<<std::endl;
+
     unsigned short usRxlength = 0;
     unsigned char chrTemp[1000];
-    if(0 == strcmp(argv[2],"0"))
-    {
-        for(i = 0;i < 10;i++)
-        {
-            len = UART0_Send(fd,send_buf,10);
-            if(len > 0)
-                printf(" %d time send %d data successful\n",i,len);
-            else
-                printf("send data failed!\n");
 
-            sleep(2);
-        }
-        UART0_Close(fd);
-    }
-    else
+    while (1) //循环读取数据
     {
-        while (1) //循环读取数据
+        len = UART0_Recv(fd, rcv_buf,1000);
+        if(len > 0)
         {
-            len = UART0_Recv(fd, rcv_buf,1000);
-            if(len > 0)
+            usRxlength += len;
+            while(usRxlength >=11)
             {
-
-                usRxlength += len;
-                while(usRxlength >=11)
+                memcpy(chrTemp,rcv_buf,usRxlength);
+                if(!((chrTemp[0] == 0x55) & ((chrTemp[1] == 0x51) | (chrTemp[1] == 0x52) | (chrTemp[1] == 0x53))))
                 {
-                    memcpy(chrTemp,rcv_buf,usRxlength);
-                    if(!((chrTemp[0] == 0x55) & ((chrTemp[1] == 0x51) | (chrTemp[1] == 0x52) | (chrTemp[1] == 0x53))))
-                    {
-                        for(int i = 1;i<usRxlength;i++)
-                           rcv_buf[i-1] = rcv_buf[i];
-                        usRxlength--;
-                        continue;
-
-                    }
-
-                    DecodeIMUData(chrTemp);
-                    for(int i=11;i<usRxlength;i++)
-                        rcv_buf[i-11] = chrTemp[i];
-                    usRxlength -= 11;
+                    for(int i = 1;i<usRxlength;i++)
+                       rcv_buf[i-1] = rcv_buf[i];
+                    usRxlength--;
+                    continue;
                 }
-                /*
-                rcv_buf[len] = '\0';
-                printf("receive data is %s\n",rcv_buf);
-                printf("len = %d\n",len);
-                */
+
+                DecodeIMUData(chrTemp);
+                for(int i=11;i<usRxlength;i++)
+                    rcv_buf[i-11] = chrTemp[i];
+                usRxlength -= 11;
             }
-            else
-            {
-                printf("cannot receive data\n");
-            }
-            usleep(500);
         }
-        UART0_Close(fd);
+        else
+        {
+            printf("cannot receive data\n");
+        }
+        usleep(500);
     }
+    UART0_Close(fd);
+
 }
